@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.env
+.env.*
+.DS_Store
+
+# Azure Functions local settings (contains secrets)
+api/local.settings.json
+
+# Build outputs
+api/dist/
+web/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+
+

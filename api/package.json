@@ -1,0 +1,23 @@
+{
+  "name": "postmortem-api",
+  "private": true,
+  "version": "0.1.0",
+  "main": "dist/src/functions/*.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "dev": "npm run build && func start",
+    "start": "npm run build && func start",
+    "lint": "echo \"(add eslint if desired)\"",
+    "test": "echo \"(add tests if desired)\""
+  },
+  "dependencies": {
+    "@azure/cosmos": "^4.4.0",
+    "@azure/functions": "^4.6.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "^5.7.3"
+  }
+}
