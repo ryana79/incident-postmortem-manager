@@ -56,3 +56,13 @@ export const exportMarkdown = async (incidentId: string): Promise<string> => {
   return res.text();
 };
 
+// ─── AI Features ─────────────────────────────────────────────────────────────
+export const generateSummary = (incidentId: string) =>
+  request<{ summary: string }>(`/incidents/${incidentId}/ai/summary`, { method: 'POST' });
+
+export const suggestActions = (incidentId: string) =>
+  request<{ suggestions: string[] }>(`/incidents/${incidentId}/ai/actions`, { method: 'POST' });
+
+export const generateReport = (incidentId: string) =>
+  request<{ report: string }>(`/incidents/${incidentId}/ai/report`, { method: 'POST' });
+

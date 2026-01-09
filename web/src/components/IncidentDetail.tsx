@@ -12,6 +12,12 @@ export default function IncidentDetail() {
   const [showTimelineForm, setShowTimelineForm] = useState(false);
   const [showActionForm, setShowActionForm] = useState(false);
   const [editing, setEditing] = useState(false);
+  
+  // AI states
+  const [aiLoading, setAiLoading] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
+  const [aiReport, setAiReport] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) loadIncident();
@@ -78,8 +84,59 @@ export default function IncidentDetail() {
     loadIncident();
   }
 
+  // AI handlers
+  async function handleGenerateSummary() {
+    setAiLoading('summary');
+    try {
+      const { summary } = await api.generateSummary(id!);
+      setAiSummary(summary);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to generate summary');
+    } finally {
+      setAiLoading(null);
+    }
+  }
+
+  async function handleSuggestActions() {
+    setAiLoading('actions');
+    try {
+      const { suggestions } = await api.suggestActions(id!);
+      setAiSuggestions(suggestions);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to suggest actions');
+    } finally {
+      setAiLoading(null);
+    }
+  }
+
+  async function handleGenerateReport() {
+    setAiLoading('report');
+    try {
+      const { report } = await api.generateReport(id!);
+      setAiReport(report);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to generate report');
+    } finally {
+      setAiLoading(null);
+    }
+  }
+
+  async function handleApplySummary() {
+    if (aiSummary) {
+      await api.updateIncident(id!, { summary: aiSummary });
+      setAiSummary(null);
+      loadIncident();
+    }
+  }
+
+  async function handleAddSuggestedAction(title: string) {
+    await api.addActionItem(id!, { title, owner: 'Unassigned', status: 'open' });
+    setAiSuggestions(prev => prev.filter(s => s !== title));
+    loadIncident();
+  }
+
   if (loading) {
-    return <div className="empty-state"><p>Loading...</p></div>;
+    return <div className="empty-state"><div className="ai-loading">Loading...</div></div>;
   }
 
   if (!incident) {
@@ -88,16 +145,34 @@ export default function IncidentDetail() {
 
   return (
     <>
+      {/* Breadcrumb */}
       <div style={{ marginBottom: '1.5rem' }}>
-        <Link to="/" style={{ fontSize: '0.875rem' }}>← Back to Incidents</Link>
+        <Link to="/" style={{ fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          Back to Incidents
+        </Link>
       </div>
 
+      {/* Header Card */}
       <div className="card" style={{ marginBottom: '1.5rem' }}>
         <div className="card-header">
-          <div>
-            <h2 className="card-title" style={{ fontSize: '1.5rem' }}>{incident.title}</h2>
-            <div className="card-meta">
-              Created {new Date(incident.createdAt).toLocaleString()}
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: '600', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>
+              {incident.title}
+            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+              <div className="card-meta">
+                <span style={{ color: 'var(--text-tertiary)' }}>Started</span>{' '}
+                {new Date(incident.startedAt).toLocaleString()}
+              </div>
+              {incident.resolvedAt && (
+                <div className="card-meta">
+                  <span style={{ color: 'var(--text-tertiary)' }}>Resolved</span>{' '}
+                  {new Date(incident.resolvedAt).toLocaleString()}
+                </div>
+              )}
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -106,25 +181,8 @@ export default function IncidentDetail() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-          <div>
-            <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Started:</span>{' '}
-            <span style={{ fontFamily: 'var(--font-mono)' }}>
-              {new Date(incident.startedAt).toLocaleString()}
-            </span>
-          </div>
-          {incident.resolvedAt && (
-            <div>
-              <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Resolved:</span>{' '}
-              <span style={{ fontFamily: 'var(--font-mono)' }}>
-                {new Date(incident.resolvedAt).toLocaleString()}
-              </span>
-            </div>
-          )}
-        </div>
-
         {incident.servicesImpacted.length > 0 && (
-          <div className="tags" style={{ marginBottom: '1rem' }}>
+          <div className="tags" style={{ marginBottom: '1.25rem' }}>
             {incident.servicesImpacted.map((s) => (
               <span key={s} className="tag">{s}</span>
             ))}
@@ -133,23 +191,70 @@ export default function IncidentDetail() {
 
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>
-            ✏️ Edit
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+            Edit
           </button>
           <button className="btn btn-secondary btn-sm" onClick={handleExport}>
-            📄 Export Markdown
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            Export
           </button>
-          <button className="btn btn-danger btn-sm" onClick={handleDelete}>
-            🗑️ Delete
+          <button className="btn btn-ai btn-sm" onClick={handleGenerateReport} disabled={aiLoading === 'report'}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2a4 4 0 014 4c0 1.1-.9 2-2 2h-4a2 2 0 01-2-2 4 4 0 014-4z" />
+              <path d="M12 8v8M8 12h8" />
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+            {aiLoading === 'report' ? 'Generating...' : 'AI Report'}
+          </button>
+          <button className="btn btn-danger btn-sm" onClick={handleDelete} style={{ marginLeft: 'auto' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+            </svg>
+            Delete
           </button>
         </div>
       </div>
 
+      {/* AI Report Output */}
+      {aiReport && (
+        <div className="ai-section" style={{ marginBottom: '1.5rem' }}>
+          <div className="ai-section-header">
+            <span className="ai-badge">AI</span>
+            Generated Report
+            <button 
+              className="btn btn-ghost btn-sm" 
+              style={{ marginLeft: 'auto' }}
+              onClick={() => {
+                const blob = new Blob([aiReport], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `ai-postmortem-${id}.md`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              Download
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setAiReport(null)}>✕</button>
+          </div>
+          <pre className="ai-content" style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-sans)', fontSize: '0.875rem' }}>
+            {aiReport}
+          </pre>
+        </div>
+      )}
+
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+      <div className="tabs">
         {(['overview', 'timeline', 'actions', 'audit'] as const).map((t) => (
           <button
             key={t}
-            className={`btn btn-sm ${tab === t ? 'btn-primary' : 'btn-secondary'}`}
+            className={`tab ${tab === t ? 'active' : ''}`}
             onClick={() => setTab(t)}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -164,12 +269,41 @@ export default function IncidentDetail() {
         <div className="card">
           <div className="section-header">
             <h3 className="section-title">Summary</h3>
+            <button 
+              className="btn btn-ai btn-sm" 
+              onClick={handleGenerateSummary}
+              disabled={aiLoading === 'summary'}
+            >
+              {aiLoading === 'summary' ? 'Generating...' : '✨ Generate with AI'}
+            </button>
           </div>
+          
+          {/* AI Generated Summary */}
+          {aiSummary && (
+            <div className="ai-section" style={{ marginBottom: '1rem' }}>
+              <div className="ai-section-header">
+                <span className="ai-badge">AI</span>
+                Suggested Summary
+              </div>
+              <p className="ai-content">{aiSummary}</p>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                <button className="btn btn-primary btn-sm" onClick={handleApplySummary}>
+                  Apply Summary
+                </button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setAiSummary(null)}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
           {incident.summary ? (
-            <p style={{ whiteSpace: 'pre-wrap' }}>{incident.summary}</p>
+            <p style={{ whiteSpace: 'pre-wrap', color: 'var(--text-secondary)', lineHeight: '1.7' }}>
+              {incident.summary}
+            </p>
           ) : (
             <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-              No summary yet. Click Edit to add one.
+              No summary yet. Click "Generate with AI" or edit to add one.
             </p>
           )}
         </div>
@@ -181,21 +315,26 @@ export default function IncidentDetail() {
           <div className="section-header">
             <h3 className="section-title">Timeline</h3>
             <button className="btn btn-primary btn-sm" onClick={() => setShowTimelineForm(true)}>
-              + Add Event
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Add Event
             </button>
           </div>
           {incident.timeline.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>No timeline events yet.</p>
+            <p style={{ color: 'var(--text-muted)' }}>No timeline events yet. Add events to track what happened.</p>
           ) : (
             <div className="timeline">
               {incident.timeline.map((event) => (
                 <div key={event.id} className="timeline-item">
-                  <div className="timeline-time">{new Date(event.timestamp).toLocaleString()}</div>
+                  <div className="timeline-time">
+                    {new Date(event.timestamp).toLocaleString()}
+                  </div>
                   <div className="timeline-author">{event.author}</div>
                   <div className="timeline-content">{event.description}</div>
                   <button
-                    className="btn btn-danger btn-sm"
-                    style={{ marginTop: '0.5rem' }}
+                    className="btn btn-ghost btn-sm"
+                    style={{ marginTop: '0.5rem', color: 'var(--danger)' }}
                     onClick={() => handleDeleteTimeline(event.id)}
                   >
                     Remove
@@ -212,12 +351,61 @@ export default function IncidentDetail() {
         <div className="card">
           <div className="section-header">
             <h3 className="section-title">Action Items</h3>
-            <button className="btn btn-primary btn-sm" onClick={() => setShowActionForm(true)}>
-              + Add Action
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button 
+                className="btn btn-ai btn-sm" 
+                onClick={handleSuggestActions}
+                disabled={aiLoading === 'actions'}
+              >
+                {aiLoading === 'actions' ? 'Thinking...' : '✨ AI Suggest'}
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={() => setShowActionForm(true)}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Add
+              </button>
+            </div>
           </div>
+
+          {/* AI Suggestions */}
+          {aiSuggestions.length > 0 && (
+            <div className="ai-section" style={{ marginBottom: '1rem' }}>
+              <div className="ai-section-header">
+                <span className="ai-badge">AI</span>
+                Suggested Actions
+              </div>
+              {aiSuggestions.map((suggestion, i) => (
+                <div key={i} style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  padding: '0.75rem',
+                  background: 'var(--bg-base)',
+                  borderRadius: 'var(--radius-sm)',
+                  marginBottom: '0.5rem'
+                }}>
+                  <span style={{ fontSize: '0.875rem' }}>{suggestion}</span>
+                  <button 
+                    className="btn btn-primary btn-sm"
+                    onClick={() => handleAddSuggestedAction(suggestion)}
+                  >
+                    Add
+                  </button>
+                </div>
+              ))}
+              <button 
+                className="btn btn-ghost btn-sm" 
+                style={{ marginTop: '0.5rem' }}
+                onClick={() => setAiSuggestions([])}
+              >
+                Dismiss All
+              </button>
+            </div>
+          )}
+
           {incident.actionItems.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>No action items yet.</p>
+            <p style={{ color: 'var(--text-muted)' }}>No action items yet. Track follow-ups to prevent future incidents.</p>
           ) : (
             incident.actionItems.map((action) => (
               <div key={action.id} className="action-item">
@@ -232,15 +420,18 @@ export default function IncidentDetail() {
                     {action.title}
                   </div>
                   <div className="action-meta">
-                    Owner: {action.owner}
-                    {action.dueDate && ` · Due: ${new Date(action.dueDate).toLocaleDateString()}`}
+                    {action.owner}
+                    {action.dueDate && ` · Due ${new Date(action.dueDate).toLocaleDateString()}`}
                   </div>
                 </div>
                 <button
-                  className="btn btn-danger btn-sm"
+                  className="btn btn-ghost btn-sm"
+                  style={{ color: 'var(--danger)' }}
                   onClick={() => handleDeleteAction(action.id)}
                 >
-                  ✕
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
             ))
@@ -262,12 +453,7 @@ export default function IncidentDetail() {
                 <div key={entry.id} className="audit-entry">
                   <span className="audit-time">{new Date(entry.timestamp).toLocaleString()}</span>
                   <span className="audit-action">{entry.action}</span>
-                  <span>{entry.user}</span>
-                  {entry.details && (
-                    <span style={{ color: 'var(--text-muted)', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {entry.details.slice(0, 100)}
-                    </span>
-                  )}
+                  <span style={{ color: 'var(--text-secondary)' }}>{entry.user}</span>
                 </div>
               ))}
             </div>
@@ -277,25 +463,13 @@ export default function IncidentDetail() {
 
       {/* Modals */}
       {showTimelineForm && (
-        <TimelineModal
-          onClose={() => setShowTimelineForm(false)}
-          onSubmit={handleAddTimeline}
-        />
+        <TimelineModal onClose={() => setShowTimelineForm(false)} onSubmit={handleAddTimeline} />
       )}
-
       {showActionForm && (
-        <ActionModal
-          onClose={() => setShowActionForm(false)}
-          onSubmit={handleAddAction}
-        />
+        <ActionModal onClose={() => setShowActionForm(false)} onSubmit={handleAddAction} />
       )}
-
       {editing && (
-        <EditIncidentModal
-          incident={incident}
-          onClose={() => setEditing(false)}
-          onSubmit={handleUpdateIncident}
-        />
+        <EditIncidentModal incident={incident} onClose={() => setEditing(false)} onSubmit={handleUpdateIncident} />
       )}
     </>
   );
@@ -323,7 +497,11 @@ function TimelineModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">Add Timeline Event</h3>
-          <button className="btn btn-icon btn-secondary" onClick={onClose}>✕</button>
+          <button className="btn btn-ghost" onClick={onClose}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
@@ -334,12 +512,12 @@ function TimelineModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (
               </div>
               <div className="form-group">
                 <label className="form-label">Author</label>
-                <input type="text" className="form-input" value={author} onChange={(e) => setAuthor(e.target.value)} required placeholder="e.g., Jane Doe" />
+                <input type="text" className="form-input" value={author} onChange={(e) => setAuthor(e.target.value)} required placeholder="Jane Doe" />
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Description</label>
-              <textarea className="form-textarea" value={description} onChange={(e) => setDescription(e.target.value)} required placeholder="What happened?" />
+              <label className="form-label">What happened?</label>
+              <textarea className="form-textarea" value={description} onChange={(e) => setDescription(e.target.value)} required placeholder="Describe this event..." />
             </div>
           </div>
           <div className="modal-footer">
@@ -379,21 +557,25 @@ function ActionModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (d:
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">Add Action Item</h3>
-          <button className="btn btn-icon btn-secondary" onClick={onClose}>✕</button>
+          <button className="btn btn-ghost" onClick={onClose}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="form-group">
               <label className="form-label">Title</label>
-              <input type="text" className="form-input" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g., Add alerting for DB latency" />
+              <input type="text" className="form-input" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="Add alerting for DB latency" />
             </div>
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Owner</label>
-                <input type="text" className="form-input" value={owner} onChange={(e) => setOwner(e.target.value)} required placeholder="e.g., John Smith" />
+                <input type="text" className="form-input" value={owner} onChange={(e) => setOwner(e.target.value)} required placeholder="John Smith" />
               </div>
               <div className="form-group">
-                <label className="form-label">Due Date (optional)</label>
+                <label className="form-label">Due Date</label>
                 <input type="date" className="form-input" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               </div>
             </div>
@@ -440,7 +622,11 @@ function EditIncidentModal({ incident, onClose, onSubmit }: { incident: Incident
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3 className="modal-title">Edit Incident</h3>
-          <button className="btn btn-icon btn-secondary" onClick={onClose}>✕</button>
+          <button className="btn btn-ghost" onClick={onClose}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
@@ -452,10 +638,10 @@ function EditIncidentModal({ incident, onClose, onSubmit }: { incident: Incident
               <div className="form-group">
                 <label className="form-label">Severity</label>
                 <select className="form-select" value={severity} onChange={(e) => setSeverity(e.target.value as typeof severity)}>
-                  <option value="SEV1">SEV1</option>
-                  <option value="SEV2">SEV2</option>
-                  <option value="SEV3">SEV3</option>
-                  <option value="SEV4">SEV4</option>
+                  <option value="SEV1">SEV1 — Critical</option>
+                  <option value="SEV2">SEV2 — Major</option>
+                  <option value="SEV3">SEV3 — Minor</option>
+                  <option value="SEV4">SEV4 — Low</option>
                 </select>
               </div>
               <div className="form-group">
@@ -469,7 +655,7 @@ function EditIncidentModal({ incident, onClose, onSubmit }: { incident: Incident
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Resolved At (optional)</label>
+              <label className="form-label">Resolved At</label>
               <input type="datetime-local" className="form-input" value={resolvedAt} onChange={(e) => setResolvedAt(e.target.value)} />
             </div>
             <div className="form-group">
@@ -478,7 +664,7 @@ function EditIncidentModal({ incident, onClose, onSubmit }: { incident: Incident
             </div>
             <div className="form-group">
               <label className="form-label">Summary</label>
-              <textarea className="form-textarea" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Brief summary of what happened and why..." style={{ minHeight: '150px' }} />
+              <textarea className="form-textarea" value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Brief summary of what happened and why..." style={{ minHeight: '120px' }} />
             </div>
           </div>
           <div className="modal-footer">
@@ -490,4 +676,3 @@ function EditIncidentModal({ incident, onClose, onSubmit }: { incident: Incident
     </div>
   );
 }
-
