@@ -10,21 +10,20 @@ import {
   ActionItem,
 } from '../types';
 import { uuid, nowISO, createAuditEntry, jsonResponse, errorResponse } from '../utils';
-
-const TENANT_ID = 'default'; // Multi-tenant placeholder
-const USER = 'anonymous'; // Replace with auth user when integrated
+import { getTenantId, getUsername } from '../auth';
 
 // ─── List Incidents ──────────────────────────────────────────────────────────
 app.http('listIncidents', {
   methods: ['GET'],
   authLevel: 'anonymous',
   route: 'incidents',
-  handler: async (_req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
+  handler: async (req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
+    const tenantId = getTenantId(req);
     const container = getContainer();
     const { resources } = await container.items
       .query<Incident>({
         query: 'SELECT * FROM c WHERE c.tenantId = @tenantId ORDER BY c.createdAt DESC',
-        parameters: [{ name: '@tenantId', value: TENANT_ID }],
+        parameters: [{ name: '@tenantId', value: tenantId }],
       })
       .fetchAll();
     return jsonResponse(resources);
@@ -38,9 +37,10 @@ app.http('getIncident', {
   route: 'incidents/{id}',
   handler: async (req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
     const id = req.params.id!;
+    const tenantId = getTenantId(req);
     const container = getContainer();
     try {
-      const { resource } = await container.item(id, TENANT_ID).read<Incident>();
+      const { resource } = await container.item(id, tenantId).read<Incident>();
       if (!resource) return errorResponse('Not found', 404);
       return jsonResponse(resource);
     } catch {
@@ -59,14 +59,16 @@ app.http('createIncident', {
     const parsed = CreateIncidentSchema.safeParse(body);
     if (!parsed.success) return errorResponse(parsed.error.message);
 
+    const tenantId = getTenantId(req);
+    const username = getUsername(req);
     const now = nowISO();
     const incident: Incident = {
       id: uuid(),
-      tenantId: TENANT_ID,
+      tenantId,
       ...parsed.data,
       timeline: [],
       actionItems: [],
-      auditLog: [createAuditEntry(USER, 'created')],
+      auditLog: [createAuditEntry(username, 'created')],
       createdAt: now,
       updatedAt: now,
     };
@@ -84,21 +86,23 @@ app.http('updateIncident', {
   route: 'incidents/{id}',
   handler: async (req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
     const id = req.params.id!;
+    const tenantId = getTenantId(req);
+    const username = getUsername(req);
     const body = await req.json();
     const parsed = UpdateIncidentSchema.safeParse(body);
     if (!parsed.success) return errorResponse(parsed.error.message);
 
     const container = getContainer();
-    const { resource: existing } = await container.item(id, TENANT_ID).read<Incident>();
+    const { resource: existing } = await container.item(id, tenantId).read<Incident>();
     if (!existing) return errorResponse('Not found', 404);
 
     const updated: Incident = {
       ...existing,
       ...parsed.data,
       updatedAt: nowISO(),
-      auditLog: [...existing.auditLog, createAuditEntry(USER, 'updated', JSON.stringify(parsed.data))],
+      auditLog: [...existing.auditLog, createAuditEntry(username, 'updated', JSON.stringify(parsed.data))],
     };
-    await container.item(id, TENANT_ID).replace(updated);
+    await container.item(id, tenantId).replace(updated);
     return jsonResponse(updated);
   },
 });
@@ -110,9 +114,10 @@ app.http('deleteIncident', {
   route: 'incidents/{id}',
   handler: async (req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
     const id = req.params.id!;
+    const tenantId = getTenantId(req);
     const container = getContainer();
     try {
-      await container.item(id, TENANT_ID).delete();
+      await container.item(id, tenantId).delete();
       return { status: 204 };
     } catch {
       return errorResponse('Not found', 404);
@@ -127,12 +132,14 @@ app.http('addTimelineEvent', {
   route: 'incidents/{id}/timeline',
   handler: async (req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
     const id = req.params.id!;
+    const tenantId = getTenantId(req);
+    const username = getUsername(req);
     const body = await req.json();
     const parsed = CreateTimelineEventSchema.safeParse(body);
     if (!parsed.success) return errorResponse(parsed.error.message);
 
     const container = getContainer();
-    const { resource: existing } = await container.item(id, TENANT_ID).read<Incident>();
+    const { resource: existing } = await container.item(id, tenantId).read<Incident>();
     if (!existing) return errorResponse('Not found', 404);
 
     const event: TimelineEvent = { id: uuid(), ...parsed.data };
@@ -142,9 +149,9 @@ app.http('addTimelineEvent', {
         (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       ),
       updatedAt: nowISO(),
-      auditLog: [...existing.auditLog, createAuditEntry(USER, 'timeline_added', event.description)],
+      auditLog: [...existing.auditLog, createAuditEntry(username, 'timeline_added', event.description)],
     };
-    await container.item(id, TENANT_ID).replace(updated);
+    await container.item(id, tenantId).replace(updated);
     return jsonResponse(event, 201);
   },
 });
@@ -156,17 +163,19 @@ app.http('deleteTimelineEvent', {
   route: 'incidents/{id}/timeline/{eventId}',
   handler: async (req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
     const { id, eventId } = req.params;
+    const tenantId = getTenantId(req);
+    const username = getUsername(req);
     const container = getContainer();
-    const { resource: existing } = await container.item(id!, TENANT_ID).read<Incident>();
+    const { resource: existing } = await container.item(id!, tenantId).read<Incident>();
     if (!existing) return errorResponse('Not found', 404);
 
     const updated: Incident = {
       ...existing,
       timeline: existing.timeline.filter((e) => e.id !== eventId),
       updatedAt: nowISO(),
-      auditLog: [...existing.auditLog, createAuditEntry(USER, 'timeline_deleted', eventId)],
+      auditLog: [...existing.auditLog, createAuditEntry(username, 'timeline_deleted', eventId)],
     };
-    await container.item(id!, TENANT_ID).replace(updated);
+    await container.item(id!, tenantId).replace(updated);
     return { status: 204 };
   },
 });
@@ -178,12 +187,14 @@ app.http('addActionItem', {
   route: 'incidents/{id}/actions',
   handler: async (req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
     const id = req.params.id!;
+    const tenantId = getTenantId(req);
+    const username = getUsername(req);
     const body = await req.json();
     const parsed = CreateActionItemSchema.safeParse(body);
     if (!parsed.success) return errorResponse(parsed.error.message);
 
     const container = getContainer();
-    const { resource: existing } = await container.item(id, TENANT_ID).read<Incident>();
+    const { resource: existing } = await container.item(id, tenantId).read<Incident>();
     if (!existing) return errorResponse('Not found', 404);
 
     const item: ActionItem = { id: uuid(), ...parsed.data };
@@ -191,9 +202,9 @@ app.http('addActionItem', {
       ...existing,
       actionItems: [...existing.actionItems, item],
       updatedAt: nowISO(),
-      auditLog: [...existing.auditLog, createAuditEntry(USER, 'action_added', item.title)],
+      auditLog: [...existing.auditLog, createAuditEntry(username, 'action_added', item.title)],
     };
-    await container.item(id, TENANT_ID).replace(updated);
+    await container.item(id, tenantId).replace(updated);
     return jsonResponse(item, 201);
   },
 });
@@ -205,10 +216,12 @@ app.http('updateActionItem', {
   route: 'incidents/{id}/actions/{actionId}',
   handler: async (req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
     const { id, actionId } = req.params;
+    const tenantId = getTenantId(req);
+    const username = getUsername(req);
     const body = (await req.json()) as Partial<ActionItem>;
 
     const container = getContainer();
-    const { resource: existing } = await container.item(id!, TENANT_ID).read<Incident>();
+    const { resource: existing } = await container.item(id!, tenantId).read<Incident>();
     if (!existing) return errorResponse('Not found', 404);
 
     const idx = existing.actionItems.findIndex((a) => a.id === actionId);
@@ -222,9 +235,9 @@ app.http('updateActionItem', {
       ...existing,
       actionItems,
       updatedAt: nowISO(),
-      auditLog: [...existing.auditLog, createAuditEntry(USER, 'action_updated', actionId)],
+      auditLog: [...existing.auditLog, createAuditEntry(username, 'action_updated', actionId)],
     };
-    await container.item(id!, TENANT_ID).replace(updated);
+    await container.item(id!, tenantId).replace(updated);
     return jsonResponse(updatedItem);
   },
 });
@@ -236,17 +249,19 @@ app.http('deleteActionItem', {
   route: 'incidents/{id}/actions/{actionId}',
   handler: async (req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
     const { id, actionId } = req.params;
+    const tenantId = getTenantId(req);
+    const username = getUsername(req);
     const container = getContainer();
-    const { resource: existing } = await container.item(id!, TENANT_ID).read<Incident>();
+    const { resource: existing } = await container.item(id!, tenantId).read<Incident>();
     if (!existing) return errorResponse('Not found', 404);
 
     const updated: Incident = {
       ...existing,
       actionItems: existing.actionItems.filter((a) => a.id !== actionId),
       updatedAt: nowISO(),
-      auditLog: [...existing.auditLog, createAuditEntry(USER, 'action_deleted', actionId)],
+      auditLog: [...existing.auditLog, createAuditEntry(username, 'action_deleted', actionId)],
     };
-    await container.item(id!, TENANT_ID).replace(updated);
+    await container.item(id!, tenantId).replace(updated);
     return { status: 204 };
   },
 });
@@ -258,8 +273,9 @@ app.http('exportMarkdown', {
   route: 'incidents/{id}/export',
   handler: async (req: HttpRequest, _ctx: InvocationContext): Promise<HttpResponseInit> => {
     const id = req.params.id!;
+    const tenantId = getTenantId(req);
     const container = getContainer();
-    const { resource } = await container.item(id, TENANT_ID).read<Incident>();
+    const { resource } = await container.item(id, tenantId).read<Incident>();
     if (!resource) return errorResponse('Not found', 404);
 
     const md = generateMarkdown(resource);

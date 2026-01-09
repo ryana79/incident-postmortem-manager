@@ -1,0 +1,10 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values
+# ─────────────────────────────────────────────────────────────────────────────
+
+project_name        = "postmortem"
+location            = "centralus"
+environment         = "dev"
+# resource_group_name = "rg-postmortem-dev"  # Optional: Override auto-generated name
+

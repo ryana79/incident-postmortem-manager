@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Incident, CreateIncident } from './types';
 import * as api from './api';
 import IncidentDetail from './components/IncidentDetail';
+import UserMenu from './components/UserMenu';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
             Postmortem
           </h1>
         </Link>
+        <UserMenu />
       </header>
       <main className="main">
         <Routes>

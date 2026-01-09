@@ -1,0 +1,21 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Kustomize Configuration
+# Apply with: kubectl apply -k k8s/
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: postmortem
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/name: postmortem
+  app.kubernetes.io/managed-by: kustomize
+

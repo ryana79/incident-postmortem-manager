@@ -1,0 +1,22 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Kubernetes Service
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postmortem-api
+  namespace: postmortem
+  labels:
+    app: postmortem
+    component: api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 7071
+      protocol: TCP
+      name: http
+  selector:
+    app: postmortem
+    component: api
+

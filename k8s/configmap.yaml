@@ -1,0 +1,14 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Configuration (non-sensitive values)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postmortem-config
+  namespace: postmortem
+data:
+  COSMOS_DATABASE_NAME: "appdb"
+  COSMOS_CONTAINER_NAME: "incidents"
+  FUNCTIONS_EXTENSION_VERSION: "~4"
+  FUNCTIONS_WORKER_RUNTIME: "node"
+

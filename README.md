@@ -1,11 +1,18 @@
 # Incident Postmortem Manager (Azure)
 
-An Azure-first, 3-tier application to create and manage incident postmortems: incident timeline, customer impact, contributing factors, action items, and exportable writeups.
+An Azure-first, 3-tier application to create and manage incident postmortems: incident timeline, customer impact, contributing factors, action items, and exportable writeups — with AI-powered analysis.
 
 ![Azure](https://img.shields.io/badge/Azure-0078D4?style=flat&logo=microsoftazure&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=black)
 ![Bicep](https://img.shields.io/badge/IaC-Bicep-orange)
+![Terraform](https://img.shields.io/badge/IaC-Terraform-purple)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
+![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)
+
+## Live Demo
+
+🌐 **Website:** https://yellow-water-069414910.2.azurestaticapps.net
 
 ## Architecture
 
@@ -18,16 +25,21 @@ An Azure-first, 3-tier application to create and manage incident postmortems: in
 │   │   Static Web     │    │  Azure Functions │    │    Cosmos DB     │ │
 │   │      Apps        │───▶│   (Node.js 20)   │───▶│   (Free Tier)    │ │
 │   │   React + Vite   │    │   Managed ID     │    │   NoSQL / SQL    │ │
+│   │   + Azure AD     │    │   + Groq AI      │    │                  │ │
 │   └──────────────────┘    └──────────────────┘    └──────────────────┘ │
 │           │                        │                                    │
 │           │                        ▼                                    │
 │           │               ┌──────────────────┐                         │
 │           └──────────────▶│ App Insights     │                         │
-│                           │ (Monitoring)     │                         │
+│                           │ + Monitor Alerts │                         │
 │                           └──────────────────┘                         │
 │                                                                         │
 │   ┌─────────────────────────────────────────────────────────────────┐  │
-│   │  GitHub Actions: Build → Test → Bicep what-if → Deploy          │  │
+│   │  GitHub Actions: Build → Test → Coverage → Bicep what-if → Deploy│  │
+│   └─────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│   ┌─────────────────────────────────────────────────────────────────┐  │
+│   │  Optional: AKS Deployment (Docker + Kubernetes + ACR)            │  │
 │   └─────────────────────────────────────────────────────────────────┘  │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -39,28 +51,58 @@ An Azure-first, 3-tier application to create and manage incident postmortems: in
 | **Frontend** | Azure Static Web Apps, React, Vite | Free tier, global CDN, built-in auth |
 | **API** | Azure Functions (Consumption), TypeScript | Serverless, scales to zero, free grant |
 | **Database** | Cosmos DB (SQL API) | Free tier (1000 RU/s), global distribution |
-| **Auth** | Static Web Apps built-in + Managed Identity | No secrets in code, RBAC |
-| **IaC** | Bicep | Azure-native, type-safe, readable |
+| **Auth** | Azure AD / Entra ID | Enterprise identity, RBAC, multi-tenant |
+| **AI** | Groq (Llama 3.1) | Fast AI summaries, action suggestions |
+| **IaC** | Bicep + Terraform | Azure-native + multi-cloud options |
 | **CI/CD** | GitHub Actions | Free for public repos, Azure integration |
-| **Monitoring** | Application Insights | Traces, logs, dashboards, alerts |
+| **Monitoring** | Application Insights + Azure Monitor | Dashboards, alerts, distributed tracing |
+| **Containers** | Docker + Kubernetes (AKS) | Optional enterprise deployment path |
 
 ## Features
+
+### Core Features
 - Create incidents (title, severity, status, dates, services impacted)
 - Timeline events (what happened, when, who)
 - Action items (owner, due date, status)
 - Audit log (who changed what)
 - Export postmortem to Markdown
 
-## Repo layout
-- `infra/`: Bicep templates + parameters
-- `api/`: Azure Functions (TypeScript)
-- `web/`: React (Vite) frontend
-- `.github/workflows/`: CI/CD
+### AI-Powered Features
+- **Generate Summary:** AI analyzes timeline and creates incident summary
+- **Suggest Actions:** AI recommends follow-up action items
+- **Generate Report:** AI creates comprehensive postmortem report
 
-## Local dev (quick start)
-### Prereqs
+### Enterprise Features
+- Azure AD / Entra ID authentication
+- Multi-tenant data isolation
+- Role-based access control (RBAC)
+- Operational dashboards and alerts
+
+## Repo Layout
+
+```
+├── infra/
+│   ├── main.bicep           # Core infrastructure
+│   ├── monitoring.bicep     # Dashboards & alerts
+│   ├── aks.bicep            # Optional AKS cluster
+│   └── terraform/           # Terraform alternative
+├── api/
+│   ├── src/functions/       # Azure Functions
+│   ├── src/test/            # Jest unit tests
+│   └── Dockerfile           # Container build
+├── web/
+│   └── src/                 # React frontend
+├── k8s/                     # Kubernetes manifests
+├── scripts/                 # Deployment scripts
+└── .github/workflows/       # CI/CD pipelines
+```
+
+## Local Development
+
+### Prerequisites
 - Node.js 20+
 - Azure Functions Core Tools v4
+- (Optional) Docker
 
 ### Run API
 ```bash
@@ -76,55 +118,87 @@ npm install
 npm run dev
 ```
 
-## Deploy (Azure)
-
-See **[DEPLOY.md](DEPLOY.md)** for the full deployment guide.
-
-**Quick start:**
+### Run Tests
 ```bash
-# 1. Login
-az login
+cd api
+npm test              # Run tests
+npm run test:coverage # With coverage report
+```
 
-# 2. Create resource group
-az group create --name rg-postmortem-dev --location eastus
+## Deployment Options
 
-# 3. Deploy infrastructure
+### Option 1: Serverless (Free Tier)
+```bash
+# See DEPLOY.md for full instructions
 az deployment group create \
   --resource-group rg-postmortem-dev \
-  --template-file infra/main.bicep \
-  --parameters env=dev
-
-# 4. Deploy API
-cd api && npm ci && npm run build
-func azure functionapp publish <FUNCTION_APP_NAME>
-
-# 5. Deploy web (via GitHub Actions or SWA CLI)
+  --template-file infra/main.bicep
 ```
 
-**Cleanup (avoid charges):**
+### Option 2: Terraform
 ```bash
-az group delete --name rg-postmortem-dev --yes --no-wait
+cd infra/terraform
+terraform init
+terraform plan
+terraform apply
 ```
 
-## Resume Bullets (copy/paste for LinkedIn/resume)
+### Option 3: Kubernetes (AKS)
+```bash
+# Deploy AKS cluster
+az deployment group create -f infra/aks.bicep
 
-> Built a production-style **incident postmortem management** platform on **Azure Static Web Apps + Azure Functions + Cosmos DB**, deployed via **Bicep** and **GitHub Actions**.
+# Build and push Docker image
+docker build -t postmortem-api ./api
+az acr login -n <acr-name>
+docker push <acr-name>.azurecr.io/postmortem-api
 
-> Implemented **least-privilege access** using **Managed Identity + RBAC**, eliminating hardcoded secrets for data access.
+# Deploy to Kubernetes
+kubectl apply -k k8s/
+```
 
-> Designed **Infrastructure as Code** with **Azure Bicep**, enabling repeatable deployments with `what-if` validation in CI.
+## Monitoring
 
-> Integrated **Application Insights** for distributed tracing, custom dashboards, and alerting on API latency/error thresholds.
+Deploy operational dashboards and alerts:
+```bash
+./scripts/setup-monitoring.sh
+```
 
-> Delivered a polished React UI with timeline visualization, action item tracking, and **Markdown export** for postmortem reports.
+This creates:
+- Request rate dashboard
+- Response time monitoring
+- Error rate alerts
+- Function execution tracking
+
+## Resume Bullets
+
+> **Cloud Engineer** — *Incident Postmortem Manager* (January 2026 – Present)
+
+- Architected and deployed a **production-grade 3-tier application** on **Microsoft Azure** using **Static Web Apps**, **Azure Functions**, and **Cosmos DB**
+
+- Implemented **Infrastructure as Code (IaC)** using both **Azure Bicep** and **Terraform** for cross-platform deployment flexibility
+
+- Configured **least-privilege access** using **Azure Managed Identity** and **RBAC**, eliminating hardcoded secrets
+
+- Built a **serverless REST API** with 14 endpoints using **Azure Functions (Node.js)**, including AI-powered features via external LLM integration
+
+- Established **CI/CD pipelines** with **GitHub Actions** featuring automated builds, test coverage reporting, and Bicep `what-if` validation
+
+- Integrated **Azure Application Insights** with custom dashboards and proactive alerting on API latency and error thresholds
+
+- Implemented **Azure AD/Entra ID authentication** with role-based access control for multi-tenant access
+
+- Containerized application with **Docker** and added **Kubernetes (AKS)** deployment option with horizontal pod autoscaling
+
+- Achieved **$0 operational cost** using Azure free tiers (Consumption Plan, Cosmos DB free tier, Static Web Apps)
 
 ## Skills Demonstrated
 
-- **Azure Services:** Static Web Apps, Functions (Consumption), Cosmos DB, App Insights, Azure Monitor
-- **Security:** Managed Identity, RBAC, no secrets in code
-- **IaC:** Bicep (ARM alternative), idempotent deployments
-- **CI/CD:** GitHub Actions, multi-job pipelines, `what-if` on PRs
+- **Azure Services:** Static Web Apps, Functions, Cosmos DB, App Insights, Monitor, Entra ID, AKS, ACR
+- **Infrastructure as Code:** Azure Bicep, Terraform
+- **Containers:** Docker, Kubernetes, Kustomize, Helm-ready
+- **Security:** Managed Identity, RBAC, Azure AD, secrets management
+- **CI/CD:** GitHub Actions, automated testing, coverage reporting
+- **AI/ML:** LLM integration (Groq/Llama), prompt engineering
 - **Full-Stack:** React + TypeScript, REST API design, Zod validation
-- **Ops Mindset:** Audit logs, observability, cost-conscious architecture
-
-
+- **Observability:** Distributed tracing, dashboards, alerting, SRE practices
