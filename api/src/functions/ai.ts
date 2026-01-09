@@ -3,32 +3,32 @@ import { getContainer } from '../db';
 import { Incident } from '../types';
 import { jsonResponse, errorResponse } from '../utils';
 
-// Hugging Face free inference endpoint - using a smaller, faster model
-const HF_MODEL = 'HuggingFaceH4/zephyr-7b-beta';
-const HF_URL = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
+// Hugging Face free inference endpoint (new router URL, OpenAI-compatible)
+const HF_URL = 'https://router.huggingface.co/novita/v3/openai/chat/completions';
 
-async function callHuggingFace(prompt: string): Promise<string> {
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+async function callAI(messages: ChatMessage[]): Promise<string> {
   const response = await fetch(HF_URL, {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 512,
-        temperature: 0.7,
-        do_sample: true,
-        return_full_text: false,
-      },
+      model: 'deepseek/deepseek-r1-0528',
+      messages,
+      max_tokens: 1024,
+      temperature: 0.7,
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
     
-    // Check for model loading error
-    if (response.status === 503) {
+    if (response.status === 503 || errorText.includes('loading')) {
       throw new Error('AI model is loading. Please wait 20-30 seconds and try again.');
     }
     
@@ -37,23 +37,16 @@ async function callHuggingFace(prompt: string): Promise<string> {
 
   const data = await response.json();
   
-  // Handle error response
   if (data.error) {
-    if (data.error.includes('loading')) {
-      throw new Error('AI model is loading. Please wait 20-30 seconds and try again.');
-    }
-    throw new Error(`AI error: ${data.error}`);
+    throw new Error(`AI error: ${data.error.message || data.error}`);
   }
   
-  // Extract generated text
-  if (Array.isArray(data) && data[0]?.generated_text) {
-    return data[0].generated_text.trim();
-  }
-  if (data.generated_text) {
-    return data.generated_text.trim();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error('AI returned an empty response. Please try again.');
   }
   
-  throw new Error('AI returned an invalid response format. Please try again.');
+  return content.trim();
 }
 
 // ─── Generate Summary from Timeline ──────────────────────────────────────────
@@ -77,10 +70,14 @@ app.http('generateSummary', {
         .map(e => `- ${new Date(e.timestamp).toLocaleString()}: ${e.description} (by ${e.author})`)
         .join('\n');
 
-      const prompt = `<|system|>
-You are an expert Site Reliability Engineer writing incident postmortem summaries. Be concise and professional.</s>
-<|user|>
-Write a 2-3 paragraph incident summary for:
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: 'You are an expert Site Reliability Engineer writing incident postmortem summaries. Be concise, professional, and blameless. Write 2-3 paragraphs without markdown formatting.'
+        },
+        {
+          role: 'user',
+          content: `Write an incident summary for:
 
 Title: ${incident.title}
 Severity: ${incident.severity}
@@ -90,12 +87,13 @@ Services Affected: ${incident.servicesImpacted.join(', ') || 'Not specified'}
 Timeline:
 ${timelineText}
 
-Write a professional summary covering: what happened, the impact, root cause (if apparent), and resolution. No markdown formatting.</s>
-<|assistant|>`;
+Cover: what happened, the impact, root cause (if apparent from timeline), and resolution.`
+        }
+      ];
 
-      const summary = await callHuggingFace(prompt);
+      const summary = await callAI(messages);
       
-      if (!summary || summary.length < 20) {
+      if (summary.length < 20) {
         throw new Error('AI generated an incomplete response. Please try again.');
       }
 
@@ -122,21 +120,27 @@ app.http('suggestActions', {
 
       const existingActions = incident.actionItems.map(a => `- ${a.title}`).join('\n');
 
-      const prompt = `<|system|>
-You are an expert Site Reliability Engineer. Suggest specific, actionable follow-up items to prevent incident recurrence.</s>
-<|user|>
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: 'You are an expert Site Reliability Engineer. Return ONLY a JSON array of strings with action items. No explanation, no markdown, just the JSON array.'
+        },
+        {
+          role: 'user',
+          content: `Suggest 4 follow-up action items for this incident:
+
 Incident: ${incident.title}
 Severity: ${incident.severity}
 Services: ${incident.servicesImpacted.join(', ') || 'Not specified'}
-Summary: ${incident.summary || 'No summary provided'}
+Summary: ${incident.summary || 'No summary'}
 
-${existingActions ? `Already planned:\n${existingActions}` : ''}
+${existingActions ? `Already planned:\n${existingActions}\n\nSuggest NEW items not listed above.` : ''}
 
-Suggest exactly 4 NEW action items. Return ONLY a JSON array of strings:
-["action 1", "action 2", "action 3", "action 4"]</s>
-<|assistant|>`;
+Return ONLY a JSON array like: ["action 1", "action 2", "action 3", "action 4"]`
+        }
+      ];
 
-      const response = await callHuggingFace(prompt);
+      const response = await callAI(messages);
       
       // Parse JSON from response
       const jsonMatch = response.match(/\[[\s\S]*?\]/);
@@ -155,7 +159,6 @@ Suggest exactly 4 NEW action items. Return ONLY a JSON array of strings:
         throw new Error('AI did not generate any suggestions. Please try again.');
       }
 
-      // Filter out any non-string items and limit to 5
       const validSuggestions = suggestions
         .filter((s): s is string => typeof s === 'string' && s.length > 0)
         .slice(0, 5);
@@ -193,10 +196,14 @@ app.http('generateReport', {
         ? incident.actionItems.map(a => `- [${a.status === 'done' ? 'x' : ' '}] ${a.title} (Owner: ${a.owner})`).join('\n')
         : 'No action items';
 
-      const prompt = `<|system|>
-You are an expert Site Reliability Engineer writing a comprehensive incident postmortem report in Markdown format.</s>
-<|user|>
-Write a complete postmortem report for:
+      const messages: ChatMessage[] = [
+        {
+          role: 'system',
+          content: 'You are an expert Site Reliability Engineer writing comprehensive incident postmortem reports. Use Markdown formatting.'
+        },
+        {
+          role: 'user',
+          content: `Write a complete postmortem report:
 
 Title: ${incident.title}
 Severity: ${incident.severity}
@@ -212,18 +219,19 @@ ${timelineText}
 Action Items:
 ${actionsText}
 
-Write a professional Markdown postmortem with sections:
-1. # Executive Summary
-2. ## Impact
-3. ## Root Cause Analysis  
-4. ## Timeline
-5. ## Action Items
-6. ## Lessons Learned</s>
-<|assistant|>`;
+Write a professional Markdown report with these sections:
+# Executive Summary
+## Impact
+## Root Cause Analysis
+## Timeline
+## Action Items
+## Lessons Learned`
+        }
+      ];
 
-      const report = await callHuggingFace(prompt);
+      const report = await callAI(messages);
       
-      if (!report || report.length < 100) {
+      if (report.length < 100) {
         throw new Error('AI generated an incomplete report. Please try again.');
       }
 
