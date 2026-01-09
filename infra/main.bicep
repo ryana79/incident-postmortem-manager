@@ -13,7 +13,9 @@ param env string = 'dev'
 
 var suffix = toLower('${env}-${uniqueString(resourceGroup().id)}')
 var appName = toLower('${projectName}-${suffix}')
-var storageName = toLower(take(replace('${projectName}${env}${uniqueString(resourceGroup().id)}', '-', ''), 24))
+// Storage account names must be 3-24 chars, lowercase alphanumeric only
+var storageNameRaw = toLower(replace('st${projectName}${env}${uniqueString(resourceGroup().id)}', '-', ''))
+var storageName = take(storageNameRaw, 24)
 
 resource ai 'Microsoft.Insights/components@2020-02-02' = {
   name: '${appName}-ai'
