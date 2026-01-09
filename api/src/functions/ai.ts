@@ -3,22 +3,28 @@ import { getContainer } from '../db';
 import { Incident } from '../types';
 import { jsonResponse, errorResponse } from '../utils';
 
-// Hugging Face free inference endpoint (new router URL, OpenAI-compatible)
-const HF_URL = 'https://router.huggingface.co/novita/v3/openai/chat/completions';
+// Groq API - Free, fast, reliable
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
-async function callAI(messages: ChatMessage[]): Promise<string> {
-  const response = await fetch(HF_URL, {
+async function callGroq(messages: ChatMessage[]): Promise<string> {
+  if (!GROQ_API_KEY) {
+    throw new Error('AI is not configured. Please add GROQ_API_KEY to the function app settings.');
+  }
+
+  const response = await fetch(GROQ_URL, {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'deepseek/deepseek-r1-0528',
+      model: 'llama-3.1-8b-instant',
       messages,
       max_tokens: 1024,
       temperature: 0.7,
@@ -26,20 +32,12 @@ async function callAI(messages: ChatMessage[]): Promise<string> {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    
-    if (response.status === 503 || errorText.includes('loading')) {
-      throw new Error('AI model is loading. Please wait 20-30 seconds and try again.');
-    }
-    
-    throw new Error(`AI service error (${response.status}): ${errorText}`);
+    const errorData = await response.json().catch(() => ({}));
+    const errorMsg = errorData.error?.message || `HTTP ${response.status}`;
+    throw new Error(`AI service error: ${errorMsg}`);
   }
 
   const data = await response.json();
-  
-  if (data.error) {
-    throw new Error(`AI error: ${data.error.message || data.error}`);
-  }
   
   const content = data.choices?.[0]?.message?.content;
   if (!content) {
@@ -73,7 +71,7 @@ app.http('generateSummary', {
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: 'You are an expert Site Reliability Engineer writing incident postmortem summaries. Be concise, professional, and blameless. Write 2-3 paragraphs without markdown formatting.'
+          content: 'You are an expert Site Reliability Engineer writing incident postmortem summaries. Be concise, professional, and blameless. Write 2-3 paragraphs. Do not use markdown formatting or headers.'
         },
         {
           role: 'user',
@@ -91,12 +89,7 @@ Cover: what happened, the impact, root cause (if apparent from timeline), and re
         }
       ];
 
-      const summary = await callAI(messages);
-      
-      if (summary.length < 20) {
-        throw new Error('AI generated an incomplete response. Please try again.');
-      }
-
+      const summary = await callGroq(messages);
       return jsonResponse({ summary });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'AI generation failed';
@@ -123,7 +116,7 @@ app.http('suggestActions', {
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: 'You are an expert Site Reliability Engineer. Return ONLY a JSON array of strings with action items. No explanation, no markdown, just the JSON array.'
+          content: 'You are an expert Site Reliability Engineer. You must respond with ONLY a JSON array of strings containing action items. No other text, no explanation, no markdown - just the JSON array.'
         },
         {
           role: 'user',
@@ -134,13 +127,13 @@ Severity: ${incident.severity}
 Services: ${incident.servicesImpacted.join(', ') || 'Not specified'}
 Summary: ${incident.summary || 'No summary'}
 
-${existingActions ? `Already planned:\n${existingActions}\n\nSuggest NEW items not listed above.` : ''}
+${existingActions ? `Already planned (do not repeat these):\n${existingActions}` : ''}
 
-Return ONLY a JSON array like: ["action 1", "action 2", "action 3", "action 4"]`
+Respond with ONLY a JSON array like: ["Add monitoring for X", "Create runbook for Y", "Review Z", "Implement W"]`
         }
       ];
 
-      const response = await callAI(messages);
+      const response = await callGroq(messages);
       
       // Parse JSON from response
       const jsonMatch = response.match(/\[[\s\S]*?\]/);
@@ -162,10 +155,6 @@ Return ONLY a JSON array like: ["action 1", "action 2", "action 3", "action 4"]`
       const validSuggestions = suggestions
         .filter((s): s is string => typeof s === 'string' && s.length > 0)
         .slice(0, 5);
-
-      if (validSuggestions.length === 0) {
-        throw new Error('AI suggestions were invalid. Please try again.');
-      }
 
       return jsonResponse({ suggestions: validSuggestions });
     } catch (err) {
@@ -199,11 +188,11 @@ app.http('generateReport', {
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: 'You are an expert Site Reliability Engineer writing comprehensive incident postmortem reports. Use Markdown formatting.'
+          content: 'You are an expert Site Reliability Engineer writing comprehensive incident postmortem reports. Use proper Markdown formatting with headers.'
         },
         {
           role: 'user',
-          content: `Write a complete postmortem report:
+          content: `Write a complete postmortem report for this incident:
 
 Title: ${incident.title}
 Severity: ${incident.severity}
@@ -219,9 +208,9 @@ ${timelineText}
 Action Items:
 ${actionsText}
 
-Write a professional Markdown report with these sections:
+Write a professional Markdown postmortem with these sections:
 # Executive Summary
-## Impact
+## Impact  
 ## Root Cause Analysis
 ## Timeline
 ## Action Items
@@ -229,12 +218,7 @@ Write a professional Markdown report with these sections:
         }
       ];
 
-      const report = await callAI(messages);
-      
-      if (report.length < 100) {
-        throw new Error('AI generated an incomplete report. Please try again.');
-      }
-
+      const report = await callGroq(messages);
       return jsonResponse({ report });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'AI generation failed';
