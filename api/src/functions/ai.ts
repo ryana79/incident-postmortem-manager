@@ -108,6 +108,7 @@ app.http('generateSummary', {
         return errorResponse('Add at least one timeline event before generating a summary', 400);
       }
 
+      const startedFormatted = formatDateForAI(incident.startedAt, timezone);
       const timelineText = incident.timeline
         .map(e => `- ${formatDateForAI(e.timestamp, timezone)}: ${e.description} (by ${e.author})`)
         .join('\n');
@@ -115,21 +116,22 @@ app.http('generateSummary', {
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: 'You are an expert Site Reliability Engineer writing incident postmortem summaries. Be concise, professional, and blameless. Write 2-3 paragraphs. Do not use markdown formatting or headers.'
+          content: 'You are an expert Site Reliability Engineer writing incident postmortem summaries. Be concise, professional, and blameless. Write 2-3 paragraphs. Do not use markdown formatting or headers. CRITICAL: Use the exact dates and times provided - do not change them.'
         },
         {
           role: 'user',
-          content: `Write an incident summary for:
+          content: `Write an incident summary. Use the EXACT dates/times below - do not modify them:
 
 Title: ${incident.title}
 Severity: ${incident.severity}
 Status: ${incident.status}
+Incident Start Time: ${startedFormatted}
 Services Affected: ${incident.servicesImpacted.join(', ') || 'Not specified'}
 
 Timeline:
 ${timelineText}
 
-Cover: what happened, the impact, root cause (if apparent from timeline), and resolution.`
+Cover: what happened, the impact, root cause (if apparent from timeline), and resolution. Start by mentioning the incident occurred on ${startedFormatted}.`
         }
       ];
 
@@ -230,6 +232,9 @@ app.http('generateReport', {
       const { resource: incident } = await container.item(id, 'default').read<Incident>();
       if (!incident) return errorResponse('Incident not found', 404);
 
+      const startedFormatted = formatDateForAI(incident.startedAt, timezone);
+      const resolvedFormatted = incident.resolvedAt ? formatDateForAI(incident.resolvedAt, timezone) : 'Ongoing';
+      
       const timelineText = incident.timeline.length > 0
         ? incident.timeline.map(e => `- ${formatDateForAI(e.timestamp, timezone)}: ${e.description} (${e.author})`).join('\n')
         : 'No timeline recorded';
@@ -241,35 +246,38 @@ app.http('generateReport', {
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: 'You are an expert Site Reliability Engineer writing comprehensive incident postmortem reports. Use proper Markdown formatting with headers. When referencing times, use the exact timestamps provided - do not modify them.'
+          content: `You are an expert Site Reliability Engineer writing comprehensive incident postmortem reports. Use proper Markdown formatting with headers.
+
+CRITICAL INSTRUCTION: You MUST use the EXACT dates and times provided. Do NOT change, recalculate, or adjust any timestamps. Copy them exactly as given.`
         },
         {
           role: 'user',
-          content: `Write a complete postmortem report for this incident:
+          content: `Write a complete postmortem report. COPY ALL DATES EXACTLY - DO NOT CHANGE THEM:
 
+=== INCIDENT DETAILS (USE THESE EXACT VALUES) ===
 Title: ${incident.title}
 Severity: ${incident.severity}
 Status: ${incident.status}
-Started: ${formatDateForAI(incident.startedAt, timezone)}
-Resolved: ${incident.resolvedAt ? formatDateForAI(incident.resolvedAt, timezone) : 'Ongoing'}
+INCIDENT START TIME: ${startedFormatted}
+RESOLUTION TIME: ${resolvedFormatted}
 Services: ${incident.servicesImpacted.join(', ') || 'Not specified'}
 Summary: ${incident.summary || 'Not provided'}
 
-Timeline:
+=== TIMELINE (COPY THESE TIMESTAMPS EXACTLY) ===
 ${timelineText}
 
-Action Items:
+=== ACTION ITEMS ===
 ${actionsText}
 
-Write a professional Markdown postmortem with these sections:
-# Executive Summary
+Write a professional Markdown postmortem report. In the Executive Summary, state that the incident started on "${startedFormatted}". Include these sections:
+
+# ${incident.title} Postmortem Report
+## Executive Summary
 ## Impact  
 ## Root Cause Analysis
 ## Timeline
 ## Action Items
-## Lessons Learned
-
-IMPORTANT: Use the exact timestamps provided above. Do not change or adjust the times.`
+## Lessons Learned`
         }
       ];
 

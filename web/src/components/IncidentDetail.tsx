@@ -2,10 +2,12 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { Incident, CreateTimelineEvent, CreateActionItem } from '../types';
 import * as api from '../api';
+import { useToast } from './Toast';
 
 export default function IncidentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [incident, setIncident] = useState<Incident | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'overview' | 'timeline' | 'actions' | 'audit'>('overview');
@@ -91,7 +93,7 @@ export default function IncidentDetail() {
       const { summary } = await api.generateSummary(id!);
       setAiSummary(summary);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to generate summary');
+      showToast(err instanceof Error ? err.message : 'Failed to generate summary', 'error');
     } finally {
       setAiLoading(null);
     }
@@ -103,7 +105,7 @@ export default function IncidentDetail() {
       const { suggestions } = await api.suggestActions(id!);
       setAiSuggestions(suggestions);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to suggest actions');
+      showToast(err instanceof Error ? err.message : 'Failed to suggest actions', 'error');
     } finally {
       setAiLoading(null);
     }
@@ -115,7 +117,7 @@ export default function IncidentDetail() {
       const { report } = await api.generateReport(id!);
       setAiReport(report);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to generate report');
+      showToast(err instanceof Error ? err.message : 'Failed to generate report', 'error');
     } finally {
       setAiLoading(null);
     }
