@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { clearAuthCache } from '../api';
 
 export interface User {
   userId: string;
@@ -53,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    clearAuthCache(); // Clear cached auth token
     window.location.href = '/.auth/logout?post_logout_redirect_uri=' + encodeURIComponent('/');
   }
 

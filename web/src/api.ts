@@ -5,11 +5,54 @@ const BASE = import.meta.env.PROD
   ? 'https://postmortem-dev-uixauh3woqkza-api.azurewebsites.net/api'
   : '/api';
 
+// Cache the user's client principal for auth headers
+let cachedPrincipal: string | null = null;
+
+// Fetch and cache the SWA client principal
+async function getClientPrincipal(): Promise<string | null> {
+  if (cachedPrincipal !== null) return cachedPrincipal;
+  
+  try {
+    const res = await fetch('/.auth/me');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.clientPrincipal) {
+        // Encode the principal as base64 (same format SWA uses)
+        cachedPrincipal = btoa(JSON.stringify(data.clientPrincipal));
+        return cachedPrincipal;
+      }
+    }
+  } catch {
+    // Auth not available (local dev or error)
+  }
+  
+  cachedPrincipal = '';
+  return null;
+}
+
+// Clear cached principal (call on logout)
+export function clearAuthCache() {
+  cachedPrincipal = null;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  // Get the client principal for auth
+  const principal = await getClientPrincipal();
+  
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  
+  // Pass the auth principal to the API (same header SWA uses)
+  if (principal) {
+    headers['x-ms-client-principal'] = principal;
+  }
+  
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     ...options,
   });
+  
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || 'Request failed');
@@ -51,7 +94,13 @@ export const deleteActionItem = (incidentId: string, actionId: string) =>
 
 // ─── Export ──────────────────────────────────────────────────────────────────
 export const exportMarkdown = async (incidentId: string): Promise<string> => {
-  const res = await fetch(`${BASE}/incidents/${incidentId}/export`);
+  const principal = await getClientPrincipal();
+  const headers: Record<string, string> = {};
+  if (principal) {
+    headers['x-ms-client-principal'] = principal;
+  }
+  
+  const res = await fetch(`${BASE}/incidents/${incidentId}/export`, { headers });
   if (!res.ok) throw new Error('Export failed');
   return res.text();
 };
@@ -59,8 +108,8 @@ export const exportMarkdown = async (incidentId: string): Promise<string> => {
 // ─── AI Features ─────────────────────────────────────────────────────────────
 // Include timezone offset so API can format times correctly for the user
 const getTimezonePayload = () => ({
-  timezoneOffset: new Date().getTimezoneOffset(), // Minutes behind UTC (e.g., 300 for EST)
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone // e.g., "America/New_York"
+  timezoneOffset: new Date().getTimezoneOffset(),
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
 });
 
 export const generateSummary = (incidentId: string) =>
@@ -80,4 +129,3 @@ export const generateReport = (incidentId: string) =>
     method: 'POST',
     body: JSON.stringify(getTimezonePayload())
   });
-
