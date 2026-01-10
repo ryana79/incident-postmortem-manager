@@ -47,20 +47,39 @@ async function callGroq(messages: ChatMessage[]): Promise<string> {
   return content.trim();
 }
 
-// Helper to format date in a timezone-neutral way for AI prompts
-function formatDateForAI(isoString: string): string {
+// Helper to format date for AI prompts in the user's timezone
+function formatDateForAI(isoString: string, timezone?: string): string {
   const date = new Date(isoString);
-  // Format as: "Jan 9, 2026 at 2:30 PM UTC"
-  return date.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric', 
-    year: 'numeric',
-    timeZone: 'UTC'
-  }) + ' at ' + date.toLocaleTimeString('en-US', { 
-    hour: 'numeric', 
-    minute: '2-digit',
-    timeZone: 'UTC'
-  }) + ' UTC';
+  
+  // Use the user's timezone if provided, otherwise fall back to UTC
+  const tz = timezone || 'UTC';
+  
+  try {
+    const dateStr = date.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: tz
+    });
+    
+    const timeStr = date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: tz
+    });
+    
+    return `${dateStr} at ${timeStr}`;
+  } catch {
+    // Fallback if timezone is invalid
+    return date.toLocaleString('en-US');
+  }
+}
+
+// Interface for timezone info from frontend
+interface TimezoneInfo {
+  timezone?: string;
+  timezoneOffset?: number;
 }
 
 // ─── Generate Summary from Timeline ──────────────────────────────────────────
@@ -72,6 +91,15 @@ app.http('generateSummary', {
     const id = req.params.id!;
     const container = getContainer();
     
+    // Get timezone from request body
+    let timezone: string | undefined;
+    try {
+      const body = await req.json() as TimezoneInfo;
+      timezone = body.timezone;
+    } catch {
+      // No body or invalid JSON - use UTC
+    }
+    
     try {
       const { resource: incident } = await container.item(id, 'default').read<Incident>();
       if (!incident) return errorResponse('Incident not found', 404);
@@ -81,7 +109,7 @@ app.http('generateSummary', {
       }
 
       const timelineText = incident.timeline
-        .map(e => `- ${formatDateForAI(e.timestamp)}: ${e.description} (by ${e.author})`)
+        .map(e => `- ${formatDateForAI(e.timestamp, timezone)}: ${e.description} (by ${e.author})`)
         .join('\n');
 
       const messages: ChatMessage[] = [
@@ -189,12 +217,21 @@ app.http('generateReport', {
     const id = req.params.id!;
     const container = getContainer();
     
+    // Get timezone from request body
+    let timezone: string | undefined;
+    try {
+      const body = await req.json() as TimezoneInfo;
+      timezone = body.timezone;
+    } catch {
+      // No body or invalid JSON - use UTC
+    }
+    
     try {
       const { resource: incident } = await container.item(id, 'default').read<Incident>();
       if (!incident) return errorResponse('Incident not found', 404);
 
       const timelineText = incident.timeline.length > 0
-        ? incident.timeline.map(e => `- ${formatDateForAI(e.timestamp)}: ${e.description} (${e.author})`).join('\n')
+        ? incident.timeline.map(e => `- ${formatDateForAI(e.timestamp, timezone)}: ${e.description} (${e.author})`).join('\n')
         : 'No timeline recorded';
 
       const actionsText = incident.actionItems.length > 0
@@ -213,8 +250,8 @@ app.http('generateReport', {
 Title: ${incident.title}
 Severity: ${incident.severity}
 Status: ${incident.status}
-Started: ${formatDateForAI(incident.startedAt)}
-Resolved: ${incident.resolvedAt ? formatDateForAI(incident.resolvedAt) : 'Ongoing'}
+Started: ${formatDateForAI(incident.startedAt, timezone)}
+Resolved: ${incident.resolvedAt ? formatDateForAI(incident.resolvedAt, timezone) : 'Ongoing'}
 Services: ${incident.servicesImpacted.join(', ') || 'Not specified'}
 Summary: ${incident.summary || 'Not provided'}
 

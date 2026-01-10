@@ -57,12 +57,27 @@ export const exportMarkdown = async (incidentId: string): Promise<string> => {
 };
 
 // ─── AI Features ─────────────────────────────────────────────────────────────
+// Include timezone offset so API can format times correctly for the user
+const getTimezonePayload = () => ({
+  timezoneOffset: new Date().getTimezoneOffset(), // Minutes behind UTC (e.g., 300 for EST)
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone // e.g., "America/New_York"
+});
+
 export const generateSummary = (incidentId: string) =>
-  request<{ summary: string }>(`/incidents/${incidentId}/ai/summary`, { method: 'POST' });
+  request<{ summary: string }>(`/incidents/${incidentId}/ai/summary`, { 
+    method: 'POST',
+    body: JSON.stringify(getTimezonePayload())
+  });
 
 export const suggestActions = (incidentId: string) =>
-  request<{ suggestions: string[] }>(`/incidents/${incidentId}/ai/actions`, { method: 'POST' });
+  request<{ suggestions: string[] }>(`/incidents/${incidentId}/ai/actions`, { 
+    method: 'POST',
+    body: JSON.stringify(getTimezonePayload())
+  });
 
 export const generateReport = (incidentId: string) =>
-  request<{ report: string }>(`/incidents/${incidentId}/ai/report`, { method: 'POST' });
+  request<{ report: string }>(`/incidents/${incidentId}/ai/report`, { 
+    method: 'POST',
+    body: JSON.stringify(getTimezonePayload())
+  });
 
