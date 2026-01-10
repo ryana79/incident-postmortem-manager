@@ -47,6 +47,22 @@ async function callGroq(messages: ChatMessage[]): Promise<string> {
   return content.trim();
 }
 
+// Helper to format date in a timezone-neutral way for AI prompts
+function formatDateForAI(isoString: string): string {
+  const date = new Date(isoString);
+  // Format as: "Jan 9, 2026 at 2:30 PM UTC"
+  return date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric', 
+    year: 'numeric',
+    timeZone: 'UTC'
+  }) + ' at ' + date.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit',
+    timeZone: 'UTC'
+  }) + ' UTC';
+}
+
 // ─── Generate Summary from Timeline ──────────────────────────────────────────
 app.http('generateSummary', {
   methods: ['POST'],
@@ -65,7 +81,7 @@ app.http('generateSummary', {
       }
 
       const timelineText = incident.timeline
-        .map(e => `- ${new Date(e.timestamp).toLocaleString()}: ${e.description} (by ${e.author})`)
+        .map(e => `- ${formatDateForAI(e.timestamp)}: ${e.description} (by ${e.author})`)
         .join('\n');
 
       const messages: ChatMessage[] = [
@@ -178,7 +194,7 @@ app.http('generateReport', {
       if (!incident) return errorResponse('Incident not found', 404);
 
       const timelineText = incident.timeline.length > 0
-        ? incident.timeline.map(e => `- ${new Date(e.timestamp).toLocaleString()}: ${e.description} (${e.author})`).join('\n')
+        ? incident.timeline.map(e => `- ${formatDateForAI(e.timestamp)}: ${e.description} (${e.author})`).join('\n')
         : 'No timeline recorded';
 
       const actionsText = incident.actionItems.length > 0
@@ -188,7 +204,7 @@ app.http('generateReport', {
       const messages: ChatMessage[] = [
         {
           role: 'system',
-          content: 'You are an expert Site Reliability Engineer writing comprehensive incident postmortem reports. Use proper Markdown formatting with headers.'
+          content: 'You are an expert Site Reliability Engineer writing comprehensive incident postmortem reports. Use proper Markdown formatting with headers. When referencing times, use the exact timestamps provided - do not modify them.'
         },
         {
           role: 'user',
@@ -197,8 +213,8 @@ app.http('generateReport', {
 Title: ${incident.title}
 Severity: ${incident.severity}
 Status: ${incident.status}
-Started: ${new Date(incident.startedAt).toLocaleString()}
-Resolved: ${incident.resolvedAt ? new Date(incident.resolvedAt).toLocaleString() : 'Ongoing'}
+Started: ${formatDateForAI(incident.startedAt)}
+Resolved: ${incident.resolvedAt ? formatDateForAI(incident.resolvedAt) : 'Ongoing'}
 Services: ${incident.servicesImpacted.join(', ') || 'Not specified'}
 Summary: ${incident.summary || 'Not provided'}
 
@@ -214,7 +230,9 @@ Write a professional Markdown postmortem with these sections:
 ## Root Cause Analysis
 ## Timeline
 ## Action Items
-## Lessons Learned`
+## Lessons Learned
+
+IMPORTANT: Use the exact timestamps provided above. Do not change or adjust the times.`
         }
       ];
 
