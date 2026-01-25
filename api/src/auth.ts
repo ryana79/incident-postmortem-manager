@@ -38,14 +38,12 @@ export function getAuthUser(req: HttpRequest): AuthUser | null {
  * For this demo, we use a shared 'default' tenant so all users can see all data.
  * In a production multi-tenant app, you would return a user/org-specific tenant ID.
  */
-export function getTenantId(_req: HttpRequest): string {
-  // For demo purposes, use a shared tenant so all incidents are visible to everyone
-  // To enable multi-tenancy, uncomment the code below:
-  // const user = getAuthUser(req);
-  // if (user && user.userId !== 'anonymous') {
-  //   return `${user.identityProvider}_${user.userId}`.substring(0, 50);
-  // }
-  
+export function getTenantId(req: HttpRequest): string {
+  const user = getAuthUser(req);
+  if (user && user.userId !== 'anonymous') {
+    return `${user.identityProvider}_${user.userId}`.substring(0, 50);
+  }
+
   return 'default';
 }
 
