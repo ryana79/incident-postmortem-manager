@@ -1,6 +1,6 @@
 # Incident Postmortem Manager (Azure)
 
-An Azure-first, 3-tier application to create and manage incident postmortems: incident timeline, customer impact, contributing factors, action items, and exportable writeups — with AI-powered analysis.
+An Azure-first, 3-tier application to create and manage incident postmortems: incident timeline, customer impact, contributing factors, action items, and exportable writeups, with AI-powered analysis.
 
 [![CI](https://github.com/ryana79/incident-postmortem-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/ryana79/incident-postmortem-manager/actions/workflows/ci.yml)
 ![Azure](https://img.shields.io/badge/Azure-0078D4?style=flat)
@@ -14,7 +14,7 @@ An Azure-first, 3-tier application to create and manage incident postmortems: in
 ## Engineering Highlights
 
 - **Serverless REST API with 14 endpoints** (Azure Functions, Node.js 20, TypeScript) covering incident CRUD, timeline events, action items, Markdown export, and 3 AI-assisted analysis routes.
-- **43 Jest unit tests** run with coverage reporting on every push — see the CI badge above and the coverage summary in each workflow run.
+- **43 Jest unit tests** run with coverage reporting on every push. See the CI badge above and the coverage summary in each workflow run.
 - **~960 lines of Infrastructure as Code** in two parallel stacks: Azure Bicep (core, monitoring, optional AKS) and Terraform, so the same environment is reproducible either way.
 - **CI/CD with safety rails**: GitHub Actions pipeline runs build → test → coverage → Bicep `what-if` preview before any deploy touches Azure.
 - **Least-privilege security**: Managed Identity for Cosmos DB access (no connection strings in app code), Entra ID auth, RBAC.
@@ -23,7 +23,7 @@ An Azure-first, 3-tier application to create and manage incident postmortems: in
 
 ## Demo
 
-The demo environment is deployed on demand rather than kept running (free-tier resources are torn down between uses). You can stand up a full instance in minutes with one Bicep deployment — see [DEPLOY.md](DEPLOY.md), or the local quickstart below to run it with zero Azure resources.
+The demo environment is deployed on demand rather than kept running (free-tier resources are torn down between uses). You can stand up a full instance in minutes with one Bicep deployment (see [DEPLOY.md](DEPLOY.md)), or use the local quickstart below to run it with zero Azure resources.
 
 ## Architecture
 
