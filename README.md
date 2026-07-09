@@ -2,47 +2,57 @@
 
 An Azure-first, 3-tier application to create and manage incident postmortems: incident timeline, customer impact, contributing factors, action items, and exportable writeups — with AI-powered analysis.
 
-![Azure](https://img.shields.io/badge/Azure-0078D4?style=flat&logo=microsoftazure&logoColor=white)
+[![CI](https://github.com/ryana79/incident-postmortem-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/ryana79/incident-postmortem-manager/actions/workflows/ci.yml)
+![Azure](https://img.shields.io/badge/Azure-0078D4?style=flat)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
 ![React](https://img.shields.io/badge/React-61DAFB?style=flat&logo=react&logoColor=black)
 ![Bicep](https://img.shields.io/badge/IaC-Bicep-orange)
-![Terraform](https://img.shields.io/badge/IaC-Terraform-purple)
+![Terraform](https://img.shields.io/badge/IaC-Terraform-purple?style=flat&logo=terraform&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)
 
-## Live Demo
+## Engineering Highlights
 
-🌐 **Website:** https://yellow-water-069414910.2.azurestaticapps.net
+- **Serverless REST API with 14 endpoints** (Azure Functions, Node.js 20, TypeScript) covering incident CRUD, timeline events, action items, Markdown export, and 3 AI-assisted analysis routes.
+- **43 Jest unit tests** run with coverage reporting on every push — see the CI badge above and the coverage summary in each workflow run.
+- **~960 lines of Infrastructure as Code** in two parallel stacks: Azure Bicep (core, monitoring, optional AKS) and Terraform, so the same environment is reproducible either way.
+- **CI/CD with safety rails**: GitHub Actions pipeline runs build → test → coverage → Bicep `what-if` preview before any deploy touches Azure.
+- **Least-privilege security**: Managed Identity for Cosmos DB access (no connection strings in app code), Entra ID auth, RBAC.
+- **Observability included**: Application Insights with custom dashboards and latency/error alerting provisioned by `scripts/setup-monitoring.sh`.
+- **$0 steady-state cost**: runs entirely on Azure free tiers (Functions Consumption, Cosmos DB free tier, Static Web Apps), with an optional AKS/Docker path for the containerized variant.
+
+## Demo
+
+The demo environment is deployed on demand rather than kept running (free-tier resources are torn down between uses). You can stand up a full instance in minutes with one Bicep deployment — see [DEPLOY.md](DEPLOY.md), or the local quickstart below to run it with zero Azure resources.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                              Azure Cloud                                │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│   ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐ │
-│   │   Static Web     │    │  Azure Functions │    │    Cosmos DB     │ │
-│   │      Apps        │───▶│   (Node.js 20)   │───▶│   (Free Tier)    │ │
-│   │   React + Vite   │    │   Managed ID     │    │   NoSQL / SQL    │ │
-│   │   + Azure AD     │    │   + Groq AI      │    │                  │ │
-│   └──────────────────┘    └──────────────────┘    └──────────────────┘ │
-│           │                        │                                    │
-│           │                        ▼                                    │
-│           │               ┌──────────────────┐                         │
-│           └──────────────▶│ App Insights     │                         │
-│                           │ + Monitor Alerts │                         │
-│                           └──────────────────┘                         │
-│                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────┐  │
-│   │  GitHub Actions: Build → Test → Coverage → Bicep what-if → Deploy│  │
-│   └─────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│   ┌─────────────────────────────────────────────────────────────────┐  │
-│   │  Optional: AKS Deployment (Docker + Kubernetes + ACR)            │  │
-│   └─────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph FE["Azure Static Web Apps"]
+    WEB[React + Vite<br/>Entra ID sign-in]
+  end
+  subgraph FN["Azure Functions (Node.js 20, TypeScript)"]
+    API[14 REST endpoints<br/>Zod validation]
+    AI[Groq Llama 3.1<br/>summaries, actions, reports]
+  end
+  COSMOS[(Cosmos DB<br/>free tier, SQL API)]
+  INSIGHTS[App Insights<br/>+ Monitor alerts]
+  WEB -->|HTTPS + JWT| API
+  API --> AI
+  API -->|Managed Identity| COSMOS
+  WEB --> INSIGHTS
+  API --> INSIGHTS
+
+  subgraph CICD["GitHub Actions"]
+    PIPE[build → test → coverage → Bicep what-if → deploy]
+  end
+  PIPE -.provisions.-> FE & FN & COSMOS & INSIGHTS
+
+  subgraph OPT["Optional container path"]
+    AKS[Docker → ACR → AKS<br/>Kustomize manifests]
+  end
+  PIPE -.-> AKS
 ```
 
 ### Tech Stack
@@ -170,35 +180,8 @@ This creates:
 - Error rate alerts
 - Function execution tracking
 
-## Resume Bullets
+## Design Notes
 
-> **Cloud Engineer** — *Incident Postmortem Manager* (January 2026 – Present)
-
-- Architected and deployed a **production-grade 3-tier application** on **Microsoft Azure** using **Static Web Apps**, **Azure Functions**, and **Cosmos DB**
-
-- Implemented **Infrastructure as Code (IaC)** using both **Azure Bicep** and **Terraform** for cross-platform deployment flexibility
-
-- Configured **least-privilege access** using **Azure Managed Identity** and **RBAC**, eliminating hardcoded secrets
-
-- Built a **serverless REST API** with 14 endpoints using **Azure Functions (Node.js)**, including AI-powered features via external LLM integration
-
-- Established **CI/CD pipelines** with **GitHub Actions** featuring automated builds, test coverage reporting, and Bicep `what-if` validation
-
-- Integrated **Azure Application Insights** with custom dashboards and proactive alerting on API latency and error thresholds
-
-- Implemented **Azure AD/Entra ID authentication** with role-based access control for multi-tenant access
-
-- Containerized application with **Docker** and added **Kubernetes (AKS)** deployment option with horizontal pod autoscaling
-
-- Achieved **$0 operational cost** using Azure free tiers (Consumption Plan, Cosmos DB free tier, Static Web Apps)
-
-## Skills Demonstrated
-
-- **Azure Services:** Static Web Apps, Functions, Cosmos DB, App Insights, Monitor, Entra ID, AKS, ACR
-- **Infrastructure as Code:** Azure Bicep, Terraform
-- **Containers:** Docker, Kubernetes, Kustomize, Helm-ready
-- **Security:** Managed Identity, RBAC, Azure AD, secrets management
-- **CI/CD:** GitHub Actions, automated testing, coverage reporting
-- **AI/ML:** LLM integration (Groq/Llama), prompt engineering
-- **Full-Stack:** React + TypeScript, REST API design, Zod validation
-- **Observability:** Distributed tracing, dashboards, alerting, SRE practices
+- **Why two IaC stacks?** Bicep is the Azure-native path with `what-if` previews wired into CI; the Terraform stack mirrors it for teams standardized on multi-cloud tooling. Both provision the same topology.
+- **Why Managed Identity over connection strings?** The Functions app authenticates to Cosmos DB with its Azure-managed identity, so there are no database secrets to rotate, leak, or store in app settings.
+- **Why the optional AKS path?** The serverless tier is the cost-efficient default; the Docker/AKS variant (with Kustomize manifests and horizontal pod autoscaling) exists to demonstrate the same API running in a container-orchestrated environment.
