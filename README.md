@@ -10,9 +10,13 @@ An Azure-first, 3-tier application to create and manage incident postmortems: in
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white)
 ![Kubernetes](https://img.shields.io/badge/Kubernetes-326CE5?style=flat&logo=kubernetes&logoColor=white)
 
-## Live Demo
+## Demo
 
-🌐 **Website:** https://yellow-water-069414910.2.azurestaticapps.net
+The Azure Static Web Apps demo is deployed on demand rather than kept running
+(free-tier resources are torn down between uses). Stand up a full instance with
+[DEPLOY.md](DEPLOY.md), or use the local quickstart below.
+
+**Source:** https://github.com/ryana79/incident-postmortem-manager
 
 ## Architecture
 
