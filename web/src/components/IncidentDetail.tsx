@@ -211,7 +211,7 @@ export default function IncidentDetail() {
               <path d="M12 8v8M8 12h8" />
               <circle cx="12" cy="12" r="10" />
             </svg>
-            {aiLoading === 'report' ? 'Generating...' : 'AI Report'}
+            {aiLoading === 'report' ? 'Generating...' : 'Generate Report'}
           </button>
           <button className="btn btn-danger btn-sm" onClick={handleDelete} style={{ marginLeft: 'auto' }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -276,7 +276,7 @@ export default function IncidentDetail() {
               onClick={handleGenerateSummary}
               disabled={aiLoading === 'summary'}
             >
-              {aiLoading === 'summary' ? 'Generating...' : '✨ Generate with AI'}
+              {aiLoading === 'summary' ? 'Generating...' : 'Generate with AI'}
             </button>
           </div>
           
@@ -359,7 +359,7 @@ export default function IncidentDetail() {
                 onClick={handleSuggestActions}
                 disabled={aiLoading === 'actions'}
               >
-                {aiLoading === 'actions' ? 'Thinking...' : '✨ AI Suggest'}
+                {aiLoading === 'actions' ? 'Generating...' : 'Suggest Actions'}
               </button>
               <button className="btn btn-primary btn-sm" onClick={() => setShowActionForm(true)}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">

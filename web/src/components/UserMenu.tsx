@@ -34,7 +34,7 @@ export default function UserMenu() {
           width: '32px',
           height: '32px',
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, var(--accent-start), var(--accent-end))',
+          background: 'var(--accent-solid)',
           color: 'white',
           border: 'none',
           cursor: 'pointer',

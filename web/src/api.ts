@@ -1,9 +1,9 @@
 import type { Incident, CreateIncident, TimelineEvent, CreateTimelineEvent, ActionItem, CreateActionItem } from './types';
 
-// Use Azure Function URL in production, local proxy in development
-const BASE = import.meta.env.PROD 
+// Use Azure Function URL in production (or configured env var), local proxy in development
+const BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD 
   ? 'https://postmortem-dev-uixauh3woqkza-api.azurewebsites.net/api'
-  : '/api';
+  : '/api');
 
 // Cache the user's client principal for auth headers
 let cachedPrincipal: string | null = null;

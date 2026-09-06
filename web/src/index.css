@@ -18,12 +18,12 @@
   --text-tertiary: #71717a;
   --text-muted: #52525b;
   
-  /* Accent - Violet/Purple gradient */
-  --accent-start: #8b5cf6;
-  --accent-end: #6366f1;
-  --accent-solid: #8b5cf6;
-  --accent-muted: rgba(139, 92, 246, 0.15);
-  --accent-glow: rgba(139, 92, 246, 0.4);
+  /* Accent - Indigo / Slate */
+  --accent-start: #3b82f6;
+  --accent-end: #2563eb;
+  --accent-solid: #3b82f6;
+  --accent-muted: rgba(59, 130, 246, 0.12);
+  --accent-glow: rgba(59, 130, 246, 0.2);
   
   /* Semantic colors */
   --success: #22c55e;
@@ -89,23 +89,14 @@ body::before {
   background-image: 
     linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 64px 64px;
+  background-size: 48px 48px;
   pointer-events: none;
   z-index: -1;
 }
 
-/* Gradient orb in background */
+/* Background ambient light removed for clean operational look */
 body::after {
-  content: '';
-  position: fixed;
-  top: -50%;
-  left: -20%;
-  width: 80%;
-  height: 80%;
-  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
-  opacity: 0.15;
-  pointer-events: none;
-  z-index: -1;
+  display: none;
 }
 
 a {
@@ -153,7 +144,7 @@ a:hover {
 .header-logo {
   width: 28px;
   height: 28px;
-  background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+  background: var(--accent-solid);
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -161,7 +152,6 @@ a:hover {
   font-weight: 700;
   font-size: 0.8rem;
   color: white;
-  box-shadow: var(--shadow-glow);
 }
 
 .main {
@@ -198,7 +188,6 @@ a:hover {
 
 .card:hover {
   border-color: var(--border-default);
-  transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
 
@@ -299,15 +288,15 @@ a:hover {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+  background: var(--accent-solid);
   color: white;
-  border: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .btn-primary:hover:not(:disabled) {
-  box-shadow: var(--shadow-glow), 0 4px 12px rgba(0, 0, 0, 0.3);
-  transform: translateY(-1px);
+  background: #2563eb;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .btn-secondary {
