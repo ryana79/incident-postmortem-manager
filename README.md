@@ -23,11 +23,10 @@ An Azure-first, 3-tier application to create and manage incident postmortems: in
 
 ## Demo
 
-The Azure Static Web Apps demo is deployed on demand rather than kept running
-(free-tier resources are torn down between uses). Stand up a full instance with
-[DEPLOY.md](DEPLOY.md), or use the local quickstart below.
+- **Live Demo**: [https://incident-postmortem-manager.netlify.app](https://incident-postmortem-manager.netlify.app)
+- **Source**: https://github.com/ryana79/incident-postmortem-manager
 
-**Source:** https://github.com/ryana79/incident-postmortem-manager
+To stand up a dedicated Azure infrastructure instance with Cosmos DB and Azure Functions, follow [DEPLOY.md](DEPLOY.md), or run locally via the quickstart below.
 
 ## Architecture
 
